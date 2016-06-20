@@ -9,6 +9,14 @@ import { PersonList } from './components/person-list';
 import { PersonInput } from './components/person-input';
 import { FilterSelect } from './components/filter-select';
 
+// RXJS Observable
+import { Observable } from 'rxjs/Observable';
+
+import { Store, provideStore } from '@ngrx/store';
+
+import { people } from './reducers/people';
+import { filter } from './reducers/filter';
+
 @Component({
 	selector: 'app',
 	template: (
@@ -17,8 +25,7 @@ import { FilterSelect } from './components/filter-select';
       <filter-select (updateFilter)='updateFilter($event)'></filter-select>
       <person-input (addPerson)='addPerson($event)'></person-input>
       <person-list
-        [people]='people'
-        [filter]='filter'
+        [people]='people | async'
         (addGuest)='addGuest($event)'
         (removeGuest)='removeGuest($event)'
         (removePerson)='removePerson($event)'
@@ -29,33 +36,66 @@ import { FilterSelect } from './components/filter-select';
 	directives: [PersonList, PersonInput, FilterSelect]
 })
 export class App {
-	public people = [];
-	private filter = 'SHOW_ALL';
+	public people;
+	private id = 0;
+
+	constructor(
+		private _store: Store<any>
+	) {
+		this.people = Observable.combineLatest(
+			_store.select('people'),
+			_store.select('filter'),
+			(people, filter) => {
+				return people.filter(filter)
+			}
+		)
+	}
 
 	addPerson(name){
-		this.people.push({ name, guests: 0, attending: false })
+		this._store.dispatch({
+			type: 'ADD_PERSON',
+			payload: {
+				id: ++this.id,
+				name,
+				guests: 0,
+				attending: false
+			}
+		})
 	}
 
-	addGuest(person){
-		person.guests += 1;
+	addGuest({id}){
+		this._store.dispatch({
+			type: 'ADD_GUESTS',
+			payload: id
+		})
 	}
 
-	removeGuest(person){
-		person.guests -= 1;
+	removeGuest({id}){
+		this._store.dispatch({
+			type: 'REMOVE_GUESTS',
+			payload: id
+		})
 	}
 
-	removePerson(person){
-		const index = this.people.indexOf(person);
-		this.people.splice(index, 1);
+	removePerson({id}){
+		this._store.dispatch({
+			type: 'REMOVE_PERSON',
+			payload: id
+		})
 	}
 
-	toggleAttending(person){
-		person.attending = !person.attending;
+	toggleAttending({id}){
+		this._store.dispatch({
+			type: 'TOGGLE_ATTENDING',
+			payload: id
+		})
 	}
 
 	updateFilter(filter){
-		this.filter = filter;
+		this._store.dispatch({type: filter});
 	}
 }
 
-bootstrap(App, []);
+bootstrap(App, [
+	provideStore({ people, filter })
+]);
